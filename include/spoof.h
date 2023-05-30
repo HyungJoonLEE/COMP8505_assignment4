@@ -12,35 +12,19 @@
 #define ETHER_HDRLEN 14
 #endif
 
+#define CMD "netstat -rn"
+
+
+
 struct options_spoofing {
     unsigned int count;
-    int target_socket;
-    char temp_ip[16];
-    char spoof_ip[16];
-    char decrypt_instruction[128];
-    char filter[128];
-    bool target_flag;
-    bool pcap2_flag;
-    bool serv_flag;
-    bool command_flag;
+    char spoofing_ip[16];
+    char device_ip[16];
+    char gateway_ip[16];
+    uint16_t device_port;
     bool ip_flag;
     char buffer[65507];
 };
-
-
-// Function Prototypes
-void options_spoofing_init(struct options_spoofing *opts);
-void program_setup(int argc, char *argv[]);
-void get_ip_address(struct options_spoofing *opts);
-bool is_valid_ipaddress(char *ip_address);
-void sig_handler(int signum);
-u_int16_t handle_ethernet (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
-void handle_IP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
-void handle_TCP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
-void handle_UDP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
-void print_payload (const u_char *, int);
-void print_hex_ascii_line (const u_char *, int, int);
-void pkt_callback(u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 
 
 /*
@@ -102,5 +86,42 @@ struct sniff_udp {
     u_int16_t uh_sum;                  /* udp checksum */
 };
 
+
+struct sniff_dns {
+    uint16_t trans_id;
+    uint16_t flags;
+    uint16_t question;
+    uint16_t answer;
+    uint16_t authority;
+    uint16_t additional;
+    char queries[256];
+};
+
+
+struct send_udp {
+    struct iphdr ip;
+    struct udphdr udp;
+    struct sniff_dns dns;
+};
+
+
+// Function Prototypes
+void options_spoofing_init(struct options_spoofing *option);
+void program_setup(int argc, char *argv[]);
+void get_ip_address(void);
+void find_gateway(void);
+void get_device_ip(char* nic_device);
+bool is_valid_ipaddress(char *ip_address);
+void sig_handler(int signum);
+void create_packet(void);
+
+
+u_int16_t handle_ethernet (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
+void handle_IP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
+void handle_TCP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
+void handle_UDP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
+void print_payload (const u_char *, int);
+void print_hex_ascii_line (const u_char *, int, int);
+void pkt_callback(u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 
 #endif COMP_8505_ASSIGNMENT4_SNIFFER_H

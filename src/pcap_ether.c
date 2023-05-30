@@ -20,7 +20,6 @@
 -------------------------------------------------------------------------------------------------*/
 
 #include "spoof.h"
-#include "extern.h"
 
 u_int16_t handle_ethernet (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
     u_int caplen = pkthdr->caplen;
@@ -37,21 +36,21 @@ u_int16_t handle_ethernet (u_char *args, const struct pcap_pkthdr* pkthdr, const
     eptr = (struct ether_header *) packet;
     ether_type = ntohs(eptr->ether_type);
 
-    // IPv4 packet
-    if (ether_type == ETHERTYPE_IP) {
-        printf("[ IPv4 Header ]\n");
-    }
-    // IPv6 packet
-    else if (ether_type == ETHERTYPE_IPV6) {
-        printf("[ IPV6 Header ]\n");
-    }
-    // ARP packet
-    else if (ether_type == ETHERTYPE_ARP) {
-        printf("[ ARP Header ]\n");
-    }
-    else printf("[ Unknown ]\n");
-
-    printf("    Total length: %d\n", length);
+//    // IPv4 packet
+//    if (ether_type == ETHERTYPE_IP) {
+//        printf("[ IPv4 Header ]\n");
+//    }
+//    // IPv6 packet
+//    else if (ether_type == ETHERTYPE_IPV6) {
+//        printf("[ IPV6 Header ]\n");
+//    }
+//    // ARP packet
+//    else if (ether_type == ETHERTYPE_ARP) {
+//        printf("[ ARP Header ]\n");
+//    }
+//    else printf("[ Unknown ]\n");
+//
+//    printf("    Total length: %d\n", length);
 
     return ether_type;
 }

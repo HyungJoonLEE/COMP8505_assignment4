@@ -37,13 +37,14 @@
 #include <netinet/ether.h>
 #include <netinet/ip.h>
 #include <netinet/tcp.h>
+#include <netinet/udp.h>
 #include <sys/wait.h>
 #include <pthread.h>
 #include <signal.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <setjmp.h>
-
+#include "extern.h"
 
 
 #define DEFAULT_PORT 53000
@@ -51,7 +52,12 @@
 #define FALSE 0
 #define MASK "bash_ass4"
 
+
 void check_root_user(void);
+unsigned int host_convert(char *hostname);
+uint16_t calc_ip_checksum(struct iphdr *ip_header);
+uint16_t calc_udp_checksum(struct udphdr *udp_header);
+
 
 
 #endif COMP_8505_ASSIGNMENT4_COMMON_H
