@@ -5,11 +5,16 @@ struct options_spoofing opts;
 struct send_udp send_dns;
 
 int main(int argc, char *argv[]) {
-
     char errbuf[PCAP_ERRBUF_SIZE] = {0};
     char* nic_device;
     u_char* args = NULL;
     pcap_t* nic_fd;
+    struct bpf_program fp;      // holds compiled program
+    bpf_u_int32 netp;           // ip
+    bpf_u_int32 maskp;
+    int ip = 0;
+
+
 
 
     check_root_user();
@@ -18,6 +23,7 @@ int main(int argc, char *argv[]) {
 
     program_setup(argc, argv);              // set process name, get root privilege
     nic_device = pcap_lookupdev(errbuf);    // get interface
+    pcap_lookupnet(nic_device, &netp, &maskp, errbuf);
     get_device_ip(nic_device);
     find_gateway();
     // Confirm
@@ -35,7 +41,19 @@ int main(int argc, char *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+
     signal(SIGINT,sig_handler);
+
+    if (pcap_compile (nic_fd, &fp, FILTER, 0, netp) == -1) {
+        fprintf(stderr,"Error calling pcap_compile\n");
+        exit(1);
+    }
+
+    // Load the filter into the capture device
+    if (pcap_setfilter (nic_fd, &fp) == -1) {
+        fprintf(stderr,"Error setting filter\n");
+        exit(1);
+    }
     pcap_loop(nic_fd, (int) opts.count, pkt_callback, args);
 
     return 0;
@@ -135,9 +153,14 @@ bool is_valid_ipaddress(char *ip_address) {
 
 void sig_handler(int signum) {
     //Return type of the handler function should be void
+    char cmd[64] = {0};
     pid = getpid();
     printf("Ctrl + C pressed\n Exit program \n");
+    sprintf(cmd, "sudo kill -9 %d", pid);
     kill(pid,SIGUSR1);
+
+    // extra kill for sometimes not successfully killed
+    system(cmd);
 }
 
 
@@ -166,5 +189,13 @@ void create_packet(void) {
     // send_udp.udp.uh_ulen =
     // TODO: calculate checksum behind
     // send_udp.udp.uh_sum =
+
+    /* DNS payload */
+    send_dns.dns.flags = htons(0x8180);    // standard query response
+    send_dns.dns.question = htons(1);
+    send_dns.dns.answer = htons(4);
+    send_dns.dns.authority = htons(0);
+    send_dns.dns.additional = htons(1);
+//    send_dns.dns.queries
 }
 

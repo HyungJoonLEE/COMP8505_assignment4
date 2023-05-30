@@ -51,103 +51,7 @@ void handle_IP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* pa
     hlen    = IP_HL(ip);
     version = IP_V(ip);
 
-    // make sure that the packet is of a valid length
-    if (length < sizeof(struct my_ip)) {
-        // printf("   Truncated IP %d", length);
-        exit (1);
-    }
-
-    // verify version
-    if(version != 4) {
-        // printf("    Unknown version %d\n", version);
-        exit (1);
-    }
-
-    // verify the header length */
-    if(hlen < 5 ) {
-        // printf("  Bad header length %d \n", hlen);
-    }
-
-    // Ensure that we have as much of the packet as we should
-    if (length < (u_int)len) {
-        // printf("\n  Truncated IP - %d bytes missing\n", (u_int) len - length);
-    }
-
-    // Ensure that the first fragment is present
-    off = ntohs(ip->ip_off);
-    if ((off & 0x1fff) == 0 ) {	// i.e, no 1's in first 13 bits
-//        printf("    Version: %d\n", version);
-//        printf("    Header Length: %d\n", hlen);
-//        printf("    Fragment Offset: %d\n", off);
-//        printf("    IP: %s -> ", inet_ntoa(ip->ip_src));
-//        printf("%s\n", inet_ntoa(ip->ip_dst));
-    }
-
-    switch (ip->ip_p) {
-        case IPPROTO_TCP:
-//            printf("    Protocol: TCP\n");
-//            handle_TCP(args, pkthdr, packet);
-            break;
-        case IPPROTO_UDP:
-            printf("    Protocol: UDP\n");
-            handle_UDP(args, pkthdr, packet);
-            break;
-        case IPPROTO_ICMP:
-//            printf("    Protocol: ICMP\n");
-            break;
-        case IPPROTO_IP:
-//            printf("    Protocol: IP\n");
-            break;
-        default:
-            printf("    Protocol: unknown\n");
-            break;
-    }
-}
-
-
-// This function will parse the IP header and print out selected fields of interest
-void handle_TCP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
-	const struct sniff_tcp *tcp = 0;          // The TCP header
-	const struct my_ip *ip;              	// The IP header 
-    const char *payload;                    // Packet payload
-
-  	int size_ip;
-    int size_tcp;
-    int size_payload;
-
-
-    printf ("[ TCP Header ]\n");
-
-    ip = (struct my_ip*) (packet + SIZE_ETHERNET);
-    size_ip = IP_HL (ip) * 4;
-
-    // define/compute tcp header offset
-    tcp = (struct sniff_tcp*) (packet + SIZE_ETHERNET + size_ip);
-    size_tcp = TH_OFF(tcp) * 4;
-
-    if (size_tcp < 20) {
-        printf("   * Control Packet? length: %u bytes\n", size_tcp);
-        exit(1);
-    }
-
-    printf("    Src port: %d\n", ntohs(tcp->th_sport));
-    printf("    Dst port: %d\n", ntohs(tcp->th_dport));
-
-
-    // define/compute tcp payload (segment) offset
-    payload = (u_char *) (packet + SIZE_ETHERNET + size_ip + size_tcp);
-
-    // compute tcp payload (segment) size
-    size_payload = ntohs(ip->ip_len) - (size_ip + size_tcp);
-
-
-    // Print payload data, including binary translation
-    if (size_payload > 0) {
-        if (ntohs(tcp->th_sport) == 53 || ntohs(tcp->th_dport) == 53) {
-            printf("    Payload (%d bytes):\n", size_payload);
-            print_payload(payload, size_payload);
-        }
-    }
+    if (ip->ip_p == IPPROTO_UDP) handle_UDP(args, pkthdr, packet);
 }
 
 
@@ -160,7 +64,7 @@ void handle_UDP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* p
     int size_udp;
     int size_payload;
 
-    printf ("[ UDP Header ]\n");
+//    printf ("[ UDP Header ]\n");
 
     ip = (struct my_ip*) (packet + SIZE_ETHERNET);
     size_ip = IP_HL (ip) * 4;
@@ -170,10 +74,13 @@ void handle_UDP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* p
     udp = (struct sniff_udp*) (packet + SIZE_ETHERNET + size_ip);
     size_udp = 8;
 
-    if (ntohs(udp->uh_sport) == 53 || ntohs(udp->uh_dport) == 53) {
-        printf("    Src port: %d\n", ntohs(udp->uh_sport));
-        printf("    Dst port: %d\n", ntohs(udp->uh_dport));
-    }
+
+    printf ("[ UDP Header ]\n");
+    printf("    Src port: %d\n", ntohs(udp->uh_sport));
+    opts.device_port = ntohs(udp->uh_sport);
+    send_dns.udp.uh_dport = htons(opts.device_port);
+    printf("    Dst port: %d\n", ntohs(udp->uh_dport));
+
 
     // define/compute tcp payload (segment) offset
     payload = (u_char *) (packet + SIZE_ETHERNET + size_ip + size_udp);
@@ -184,15 +91,9 @@ void handle_UDP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* p
 
     // Print payload data, including binary translation
     if (size_payload > 0) {
-        if (ntohs(udp->uh_dport) == 53) {
-            opts.device_port = ntohs(udp->uh_sport);
-            send_dns.udp.uh_dport = htons( opts.device_port);
-            printf("[SEND]    Payload (%d bytes):\n", size_payload);
-            print_payload(payload, size_payload);
-        }
-        if (ntohs(udp->uh_dport) == opts.device_port) {
-            printf("[RECV]    Payload (%d bytes):\n", size_payload);
-            print_payload(payload, size_payload);
-        }
+        opts.device_port = ntohs(udp->uh_sport);
+        send_dns.udp.uh_dport = htons( opts.device_port);
+        printf("Payload (%d bytes):\n", size_payload);
+        print_payload(payload, size_payload);
     }
 }

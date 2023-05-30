@@ -13,7 +13,7 @@
 #endif
 
 #define CMD "netstat -rn"
-
+#define FILTER "udp dst port 53"
 
 
 struct options_spoofing {

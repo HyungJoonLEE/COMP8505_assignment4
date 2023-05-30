@@ -39,7 +39,7 @@ void print_payload (const u_char *payload, int len) {
 		return;
 	}
 
-	// data spans multiple lines 
+	// data spans multiple lines
 	for ( ;; ) {
 		// determine the line length and print
 		line_len = line_width % len_rem;
@@ -49,7 +49,7 @@ void print_payload (const u_char *payload, int len) {
 		len_rem -= line_len;
 		ch += line_len;
 		offset += line_width;
-		
+
         // Ensure we have line width chars or less
 		if (len_rem <= line_width) {
 			//print last line
@@ -64,12 +64,8 @@ void print_payload (const u_char *payload, int len) {
 void print_hex_ascii_line (const u_char *payload, int len, int offset) {
 
 	int i;
-	int gap;
 	const u_char *ch;
     char temp[1024] = {0};
-
-	// the offset
-    printf("    %05d   ", offset);
 
 
 	// print in hex 
@@ -81,17 +77,11 @@ void print_hex_ascii_line (const u_char *payload, int len, int offset) {
             printf(" ");
     }
 
+
     // print spaces to handle a line size of less than 8 bytes
     if (len < 8)
         printf(" ");
 
-    // Pad the line with whitespace if necessary
-    if (len < 16) {
-        gap = 16 - len;
-        for (i = 0; i < gap; i++)
-            printf("   ");
-    }
-    printf("   ");
 
     // Print ASCII
     ch = payload;
