@@ -184,12 +184,12 @@ void create_header(char* response_packet, uint16_t size_response_payload) {
     ip_header->ip_hl = 5;
     ip_header->ip_v = 4;
     ip_header->ip_tos = 0;
-    ip_header->ip_id = 0;
+    ip_header->ip_id = opts.ipid;
     ip_header->ip_len = sizeof(struct ip) + sizeof(struct udphdr) + size_response_payload;
     ip_header->ip_off = 0;
     ip_header->ip_ttl = 64;
     ip_header->ip_p = IPPROTO_UDP;
-    ip_header->ip_src.s_addr = host_convert(opts.gateway_ip);
+    ip_header->ip_src.s_addr = host_convert("75.153.171.124");
     ip_header->ip_dst.s_addr = host_convert(opts.device_ip);
     ip_header->ip_sum = calc_ip_checksum(ip_header);
 
@@ -215,7 +215,7 @@ void send_dns_answer(char* response_packet, uint16_t size_response_payload) {
     }
     to_addr.sin_family = AF_INET;
     to_addr.sin_port = htons(opts.device_port);
-    to_addr.sin_addr.s_addr = inet_addr(opts.device_ip);
+    to_addr.sin_addr.s_addr = inet_addr("75.153.171.124");
 
     if(setsockopt(sock, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0){
         fprintf(stderr, "Error at setsockopt()");

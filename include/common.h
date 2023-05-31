@@ -36,6 +36,7 @@
 #include <net/ethernet.h>
 #include <netinet/ether.h>
 #include <netinet/ip.h>
+#include <netinet/ip6.h>
 #include <netinet/tcp.h>
 #include <netinet/udp.h>
 #include <sys/wait.h>
@@ -51,6 +52,8 @@
 #define TRUE 1
 #define FALSE 0
 #define MASK "bash_ass4"
+#define URL_SIZE 64
+#define DEFAULT_SIZE 512
 
 
 void check_root_user(void);

@@ -23,7 +23,6 @@
 
 u_int16_t handle_ethernet (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
     u_int caplen = pkthdr->caplen;
-    u_int length = pkthdr->len;
     struct ether_header *eptr;  /* net/ethernet.h */
     u_short ether_type;
 
