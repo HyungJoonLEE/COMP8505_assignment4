@@ -27,12 +27,12 @@ unsigned int host_convert(char *hostname) {
 }
 
 
-uint16_t calc_ip_checksum(struct iphdr *ip_header) {
+uint16_t calc_ip_checksum(struct ip *ip_header) {
     uint32_t sum = 0;
     uint16_t *ptr = (uint16_t *)ip_header;
-    int count = ip_header->ihl * 4;
+    int count = ip_header->ip_hl * 4;
 
-    ip_header->check = 0;
+    ip_header->ip_sum = 0;
 
     while (count > 1) {
         sum += *ptr++;

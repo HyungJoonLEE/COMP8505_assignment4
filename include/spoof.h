@@ -13,12 +13,14 @@
 #endif
 
 #define CMD "netstat -rn"
+#define FLUSH_CASH "systemd-resolve --flush-caches"
 #define FILTER "udp dst port 53"
 
 
 struct options_spoofing {
     unsigned int count;
     char spoofing_ip[16];
+    char request_url[16];
     char device_ip[16];
     char gateway_ip[16];
     uint16_t device_port;
@@ -27,15 +29,13 @@ struct options_spoofing {
 };
 
 
-/*
- * Structure of an internet header, stripped of all options.
- *
- * This is taken directly from the tcpdump source
- *
- * We declare ip_len and ip_off to be short, rather than u_short
- * pragmatically since otherwise unsigned comparisons can result
- * against negative integers quite easily, and fail in subtle ways.
- */
+struct etherhdr{
+    u_char ether_dhost[ETHER_ADDR_LEN]; /* dst address */
+    u_char ether_shost[ETHER_ADDR_LEN]; /* src address */
+    u_short ether_type; /* network protocol */
+};
+
+
 struct my_ip {
     u_int8_t	ip_vhl;		/* header length, version */
 #define IP_V(ip)	(((ip)->ip_vhl & 0xf0) >> 4)
@@ -53,31 +53,6 @@ struct my_ip {
     struct	in_addr ip_src, ip_dst;	/* source and dest address */
 };
 
-/* TCP header */
-typedef u_int tcp_seq;
-
-struct sniff_tcp {
-    u_short th_sport;               /* source port */
-    u_short th_dport;               /* destination port */
-    tcp_seq th_seq;                 /* sequence number */
-    tcp_seq th_ack;                 /* acknowledgement number */
-    u_char  th_offx2;               /* data offset, rsvd */
-#define TH_OFF(th)      (((th)->th_offx2 & 0xf0) >> 4)
-    u_char  th_flags;
-#define TH_FIN  0x01
-#define TH_SYN  0x02
-#define TH_RST  0x04
-#define TH_PUSH 0x08
-#define TH_ACK  0x10
-#define TH_URG  0x20
-#define TH_ECE  0x40
-#define TH_CWR  0x80
-#define TH_FLAGS        (TH_FIN|TH_SYN|TH_RST|TH_ACK|TH_URG|TH_ECE|TH_CWR)
-    u_short th_win;                 /* window */
-    u_short th_sum;                 /* checksum */
-    u_short th_urp;                 /* urgent pointer */
-};
-
 
 struct sniff_udp {
     u_int16_t uh_sport;                /* source port */
@@ -87,39 +62,54 @@ struct sniff_udp {
 };
 
 
-struct sniff_dns {
-    uint16_t trans_id;
-    uint16_t flags;
-    uint16_t question;
-    uint16_t answer;
-    uint16_t authority;
-    uint16_t additional;
-    char queries[256];
+/* DNS header */
+struct dnshdr {
+    char id[2];
+    char flags[2];
+    char qdcount[2];
+    char ancount[2];
+    char nscount[2];
+    char arcount[2];
 };
 
-
-struct send_udp {
-    struct iphdr ip;
-    struct udphdr udp;
-    struct sniff_dns dns;
+/* DNS query structure */
+struct dnsquery {
+    char *qname;
+    char qtype[2];
+    char qclass[2];
 };
+
+/* DNS answer structure */
+struct dnsanswer {
+    char *name;
+    char atype[2];
+    char aclass[2];
+    char ttl[4];
+    char RdataLen[2];
+    char *Rdata;
+};
+
 
 
 // Function Prototypes
 void options_spoofing_init(struct options_spoofing *option);
 void program_setup(int argc, char *argv[]);
 void get_ip_address(void);
+void get_url_address(void);
 void find_gateway(void);
 void get_device_ip(char* nic_device);
 bool is_valid_ipaddress(char *ip_address);
 void sig_handler(int signum);
-void create_packet(void);
-
+void create_header(char* response_packet, uint16_t size_response_payload);
 
 u_int16_t handle_ethernet (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 void handle_IP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
-void handle_TCP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 void handle_UDP (u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
+void handle_DNS(u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet, struct dnshdr **dns_hdr, struct dnsquery *dns_query);
+void handle_DNS_request(struct dnsquery *dns_query, char *request);
+uint16_t set_payload(struct dnshdr *dns_hdr, char* payload_size);
+void send_dns_answer(char* response_packet, uint16_t size_response_payload);
+
 void print_payload (const u_char *, int);
 void print_hex_ascii_line (const u_char *, int, int);
 void pkt_callback(u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);

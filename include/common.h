@@ -55,7 +55,7 @@
 
 void check_root_user(void);
 unsigned int host_convert(char *hostname);
-uint16_t calc_ip_checksum(struct iphdr *ip_header);
+uint16_t calc_ip_checksum(struct ip *ip_header);
 uint16_t calc_udp_checksum(struct udphdr *udp_header);
 
 
