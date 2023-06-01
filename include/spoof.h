@@ -30,8 +30,7 @@ struct options_spoofing {
     bool ipv6_flag;
     unsigned short tid;
     uint8_t* query_name;
-    uint16_t type;
-    uint16_t class;
+    uint8_t type[2];
 };
 
 
