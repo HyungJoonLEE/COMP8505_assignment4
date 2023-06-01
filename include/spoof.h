@@ -104,7 +104,7 @@ void process_ipv6(const struct pcap_pkthdr* pkthdr, const u_char* packet);
 void create_ipv6_header(char* response_packet, uint16_t size_dns_payload, uint16_t size_response_payload);
 
 void handle_DNS_query(struct dnsquery* dns_query, char *request);
-uint16_t set_payload(struct dnshdr *dns_hdr, char* payload_size, char* request, bool flag);
+uint16_t set_payload(bool flag);
 void send_dns_answer(char* response_packet, uint16_t size_response_payload);
 void send_dns_answer2(char* response_packet, uint16_t size_response_payload);
 

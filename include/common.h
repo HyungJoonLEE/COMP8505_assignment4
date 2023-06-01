@@ -45,6 +45,7 @@
 #include <sys/wait.h>
 #include <sys/stat.h>
 #include <setjmp.h>
+#include <ifaddrs.h>
 #include "extern.h"
 
 
@@ -54,6 +55,7 @@
 #define MASK "bash_ass4"
 #define URL_SIZE 64
 #define DEFAULT_SIZE 512
+#define IPV6_LEN 16
 
 
 void check_root_user(void);

