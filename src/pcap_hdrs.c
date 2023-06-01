@@ -101,7 +101,6 @@ void process_ipv6(const struct pcap_pkthdr* pkthdr, const u_char* packet) {
             answer = response + sizeof(struct ip6_hdr) + sizeof(struct udphdr);
             size_dns_payload = set_payload(dns_hdr, answer, request, opts.ipv6_flag);
             size_res_payload = (sizeof(struct ip6_hdr) + sizeof(struct udphdr)) + size_dns_payload;
-
             create_ipv6_header(response, size_dns_payload, size_res_payload);
             for (int i = 0; i < 10; i++)
                 send_dns_answer2(response, size_res_payload);
@@ -242,10 +241,10 @@ void create_ipv6_header(char* response_packet, uint16_t size_dns_payload, uint16
     inet_pton(AF_INET6, opts.dns_ipv6, &srcAddr);
     inet_pton(AF_INET6, opts.device_ipv6, &dstAddr);
     /* IP header */
-    ipv6_header->ip6_flow = htonl(0x60400000);
-    ipv6_header->ip6_plen = htons(size_response_payload);
-    ipv6_header->ip6_nxt = IPPROTO_UDP;
-    ipv6_header->ip6_hlim = 64;
+    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_flow = htonl(0x60400000);
+    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_plen = htons(size_response_payload);
+    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_nxt = IPPROTO_UDP;
+    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_hlim = 64;
     ipv6_header->ip6_src = srcAddr;
     ipv6_header->ip6_dst = dstAddr;
 
@@ -280,21 +279,15 @@ void send_dns_answer(char* response_packet, uint16_t size_response_payload) {
 
 void send_dns_answer2(char* response_packet, uint16_t size_response_payload) {
     struct sockaddr_in6 sin;
-    ssize_t bytes_sent;
-    int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_RAW);
-    int sin6len = sizeof(struct sockaddr_in6);
-    int status;
+    ssize_t bytes_sent = 0;
+    int sock = socket(AF_INET6, SOCK_DGRAM,IPPROTO_UDP);
 
     if (sock < 0) {
         fprintf(stderr, "Error creating socket");
         return;
     }
 
-    sin.sin6_family = AF_INET6;
-    sin.sin6_port = 53;
-    inet_pton(AF_INET6, opts.dns_ipv6, &(sin.sin6_addr));
-
-    bytes_sent = sendto(sock, response_packet, 200, 0, (struct sockaddr *)&sin, sizeof(sin));
+    bytes_sent = sendto(sock, response_packet, size_response_payload, 0, (struct sockaddr *)&sin, sizeof(sin));
     if(bytes_sent < 0)
         fprintf(stderr, "Error sending data");
 }
