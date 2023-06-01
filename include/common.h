@@ -53,7 +53,7 @@
 #define FALSE 0
 #define MASK "bash_ass4"
 #define URL_SIZE 64
-#define DEFAULT_SIZE 512
+#define DEFAULT_SIZE 360
 
 
 void check_root_user(void);

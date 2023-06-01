@@ -19,9 +19,7 @@ set(COMMON_SOURCE_LIST
 
 set(SPOOF_SOURCE_LIST
         "${PROJECT_SOURCE_DIR}/src/spoof.c"
-        "${PROJECT_SOURCE_DIR}/src/pcap_ether.c"
         "${PROJECT_SOURCE_DIR}/src/pcap_hdrs.c"
-        "${PROJECT_SOURCE_DIR}/src/pcap_payload.c"
         )
 
 
