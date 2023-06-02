@@ -51,20 +51,16 @@ uint16_t calc_ip_checksum(struct ip *ip_header) {
 
 
 
-uint16_t calc_udp_checksum(struct udphdr *udp_header) {
+uint16_t calc_udp_checksum(char* packet, size_t total_len) {
     uint32_t sum = 0;
-    uint16_t *ptr = (uint16_t *)udp_header;
-    int count = udp_header->uh_ulen;
 
-    udp_header->uh_sum = 0;
-
-    while (count > 1) {
-        sum += *ptr++;
-        count -= 2;
+    while (total_len > 1) {
+        sum += *packet++;
+        total_len -= 2;
     }
 
-    if (count > 0) {
-        sum += *(uint8_t *)ptr;
+    if (total_len > 0) {
+        sum += *(uint8_t *)packet;
     }
 
     while (sum >> 16) {

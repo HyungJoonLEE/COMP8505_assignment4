@@ -28,6 +28,7 @@ struct options_spoofing {
     uint16_t device_port;
 
     bool ipv6_flag;
+    uint16_t ip_id;
     unsigned short tid;
     uint8_t* query_name;
     uint8_t type[2];

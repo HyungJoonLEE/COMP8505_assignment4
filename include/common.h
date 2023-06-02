@@ -54,13 +54,13 @@
 #define MASK "bash_ass4"
 #define URL_SIZE 64
 #define DEFAULT_SIZE 512
+#define IPV6_LEN 16
 
 
 void check_root_user(void);
 unsigned int host_convert(char *hostname);
 uint16_t calc_ip_checksum(struct ip *ip_header);
-uint16_t calc_udp_checksum(struct udphdr *udp_header);
-
+uint16_t calc_udp_checksum(char* packet, size_t total_len);
 
 
 #endif COMP_8505_ASSIGNMENT4_COMMON_H
