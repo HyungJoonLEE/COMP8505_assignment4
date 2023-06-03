@@ -252,7 +252,7 @@ void create_ipv6_header(char* response_packet, uint16_t size_dns_payload, uint16
     inet_pton(AF_INET6, opts.device_ipv6, &dstAddr);
     /* IP header */
     ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_flow = htonl(0x60400000);
-    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_plen = htons(size_response_payload);
+    ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_plen = htons(size_response_payload - sizeof(struct ip6_hdr));
     ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_nxt = IPPROTO_UDP;
     ipv6_header->ip6_ctlun.ip6_un1.ip6_un1_hlim = 64;
     ipv6_header->ip6_src = srcAddr;

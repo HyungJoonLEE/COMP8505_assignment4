@@ -20,7 +20,7 @@
 struct options_spoofing {
     unsigned int count;
     char spoofing_ip[16];
-    char request_url[16];
+    char request_url[64];
     char device_ip[16];
     char device_ipv6[40];
     char dns_ip[16];
