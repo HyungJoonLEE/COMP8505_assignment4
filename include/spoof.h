@@ -13,7 +13,8 @@
 #endif
 
 #define CMD "netstat -rn"
-#define FLUSH_CASH "systemd-resolve --flush-caches"
+#define FLUSH_CASH1 "systemd-resolve --flush-caches"
+#define FLUSH_CASH2 "resolvectl flush-caches"
 #define FILTER "udp dst port 53"
 
 
@@ -23,6 +24,8 @@ struct options_spoofing {
     char request_url[64];
     char device_ip[16];
     char device_ipv6[40];
+    unsigned char device_MAC[6];
+    unsigned char gateway_MAC[6];
     char dns_ip[16];
     char dns_ipv6[40];
     uint16_t device_port;
@@ -32,32 +35,7 @@ struct options_spoofing {
     unsigned short tid;
     uint8_t* query_name;
     uint8_t type[2];
-};
-
-
-struct etherhdr{
-    u_char ether_dhost[ETHER_ADDR_LEN]; /* dst address */
-    u_char ether_shost[ETHER_ADDR_LEN]; /* src address */
-    u_short ether_type; /* network protocol */
-};
-
-
-/* DNS query structure */
-struct dnsquery {
-    uint8_t* name;
-    uint8_t type[2];
-    uint8_t class[2];
-};
-
-
-/* DNS answer structure */
-struct dnsanswer {
-    uint8_t name[2];
-    uint8_t type[2];
-    uint16_t class;
-    uint32_t ttl;
-    uint16_t datalen;
-    uint8_t address[4];
+    bool MAC_flag;
 };
 
 
@@ -92,22 +70,24 @@ struct dnshdr {
 // Function Prototypes
 void options_spoofing_init(struct options_spoofing *option);
 void program_setup(int argc, char *argv[]);
+void get_MAC_address(void);
 void get_ip_address(void);
 void get_url_address(void);
 void get_device_ip(char* nic_device);
 bool is_valid_ipaddress(char *ip_address);
 void sig_handler(int signum);
 
+unsigned short create_dns_answer(char* answer, unsigned short* size_answer);
+unsigned short create_dns_header(u_char* dns, struct dnshdr* dh);
+unsigned short create_udp_header(u_char* udp, struct udphdr* uh, unsigned short size);
+unsigned short create_ip_header(u_char* ip, struct iphdr* ih, unsigned short size);
+unsigned short create_ethernet_header(u_char* ether, struct ether_header* eh);
+
+
 void process_ipv4(const struct pcap_pkthdr* pkthdr, const u_char* packet);
-void create_ipv4_header(char* response_packet, uint16_t size_dns_payload, uint16_t size_response_payload);
 
-void process_ipv6(const struct pcap_pkthdr* pkthdr, const u_char* packet);
-void create_ipv6_header(char* response_packet, uint16_t size_dns_payload, uint16_t size_response_payload);
-
-void handle_DNS_query(struct dnsquery* dns_query, char *request);
-uint16_t set_payload(struct dnshdr *dns_hdr, char* payload_size, char* request, bool flag);
+void handle_DNS_query(u_char * dns_query, char *request);
 void send_dns_answer(char* response_packet, uint16_t size_response_payload);
-void send_dns_answer2(char* response_packet, uint16_t size_response_payload);
 
 void pkt_callback(u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 

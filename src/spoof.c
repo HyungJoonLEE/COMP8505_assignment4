@@ -2,25 +2,27 @@
 
 pid_t pid;
 struct options_spoofing opts;
-char* answer = NULL;
+pcap_t* nic_fd;
+char* nic_device;
 
 int main(int argc, char *argv[]) {
     char errbuf[PCAP_ERRBUF_SIZE] = {0};
-    char* nic_device;
     u_char* args = NULL;
-    pcap_t* nic_fd;
+
     struct bpf_program fp;      // holds compiled program
     bpf_u_int32 netp;           // ip
     bpf_u_int32 maskp;
 
     check_root_user();
     options_spoofing_init(&opts);
-    get_url_address();
-    get_ip_address();   // Returning IP address
 
     program_setup(argc, argv);              // set process name, get root privilege
     nic_device = pcap_lookupdev(errbuf);    // get interface
     pcap_lookupnet(nic_device, &netp, &maskp, errbuf);
+
+//    get_MAC_address();
+    get_url_address();
+    get_ip_address();   // Returning IP address
     get_device_ip(nic_device);
 
     // Confirm
@@ -68,7 +70,8 @@ void program_setup(int argc, char *argv[]) {
     prctl(PR_SET_NAME, MASK, 0, 0);
 
     /* Flush caches that has website already visited */
-    system(FLUSH_CASH);
+    system(FLUSH_CASH1);
+    system(FLUSH_CASH2);
 
     /* change the UID/GID to 0 (raise privilege) */
     setuid(0);
@@ -146,5 +149,42 @@ void sig_handler(int signum) {
 
     // extra kill for sometimes not successfully killed
     system(cmd);
+}
+
+
+void get_MAC_address() {
+    struct ifreq ifr;
+    struct ifconf ifc;
+    char buf[1024];
+    int success = 0;
+
+    int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock == -1) { /* handle error*/ };
+
+    ifc.ifc_len = sizeof(buf);
+    ifc.ifc_buf = buf;
+    if (ioctl(sock, SIOCGIFCONF, &ifc) == -1) { /* handle error */ }
+
+    struct ifreq* it = ifc.ifc_req;
+    const struct ifreq* const end = it + (ifc.ifc_len / sizeof(struct ifreq));
+
+    for (; it != end; ++it) {
+        strcpy(ifr.ifr_name, it->ifr_name);
+        if (ioctl(sock, SIOCGIFFLAGS, &ifr) == 0) {
+            if (! (ifr.ifr_flags & IFF_LOOPBACK)) { // don't count loopback
+                if (ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) {
+                    success = 1;
+                    break;
+                }
+            }
+        }
+    }
+
+
+    if (success) memcpy(opts.device_MAC, ifr.ifr_hwaddr.sa_data, 6);
+    close(sock);
+    for (int i = 0; i < 6; i++) {
+        printf("%d ", opts.device_MAC[i]);
+    }
 }
 
