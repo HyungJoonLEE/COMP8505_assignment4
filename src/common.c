@@ -49,23 +49,3 @@ uint16_t calc_ip_checksum(struct ip *ip_header) {
     return (uint16_t)~sum;
 }
 
-
-
-uint16_t calc_udp_checksum(char* packet, size_t total_len) {
-    uint32_t sum = 0;
-
-    while (total_len > 1) {
-        sum += *packet++;
-        total_len -= 2;
-    }
-
-    if (total_len > 0) {
-        sum += *(uint8_t *)packet;
-    }
-
-    while (sum >> 16) {
-        sum = (sum & 0xFFFF) + (sum >> 16);
-    }
-    return (uint16_t)~sum;
-}
-

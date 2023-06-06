@@ -108,14 +108,22 @@ unsigned short create_dns_answer(char* answer, unsigned short* size_answer) {
         answer += 2;
         size += 2;
 
+        strcpy(opts.spoofing_ip, opts.const_spoofing_ip);
+        printf("%s\n", opts.spoofing_ip);
         token = strtok(opts.spoofing_ip, ".");
         while (token != NULL) {
             answer[j] = (uint8_t) atoi(token);
             token = strtok(NULL, ".");
             j++;
         }
+        answer += 4;
         size += 4;
-        *size_answer = size;
+
+//        /* OPT */
+//        memcpy(answer, "\x00\x00\x29\x10\x00\x00\x00\x00\x00\x00\x00", 11);
+//        size += 11;
+//        *size_answer = size;
+
         return (uint16_t) size;
     }
     if (opts.type[1] == '\x1c') {
@@ -125,7 +133,14 @@ unsigned short create_dns_answer(char* answer, unsigned short* size_answer) {
 
         inet_pton(AF_INET6, opts.device_ipv6, addr);
         memcpy(answer, addr, IPV6_LEN);
+        answer += 16;
         size += 16;
+
+//        /* OPT */
+//        memcpy(answer, "\x00\x00\x29\x10\x00\x00\x00\x00\x00\x00\x00", 11);
+//        size += 11;
+//        *size_answer = size;
+
         *size_answer = size;
         return size;
     }
@@ -176,6 +191,9 @@ unsigned short create_ip_header(u_char* ip, struct iphdr* ih, unsigned short siz
     ip_hdr = (struct iphdr*) ip;
     ip_addr.s_addr = ip_hdr->daddr;
     strcpy(opts.dns_ip, inet_ntoa(ip_addr));
+
+    ip_addr.s_addr = ip_hdr->saddr;
+    strcpy(opts.device_ip, inet_ntoa(ip_addr));
 
     ih->ihl = 5;
     ih->version = 4;

@@ -12,7 +12,7 @@
 #define ETHER_HDRLEN 14
 #endif
 
-#define CMD "netstat -rn"
+#define NETSTAT "netstat -rn"
 #define FLUSH_CASH1 "systemd-resolve --flush-caches"
 #define FLUSH_CASH2 "resolvectl flush-caches"
 #define FILTER "udp dst port 53"
@@ -20,12 +20,15 @@
 
 struct options_spoofing {
     unsigned int count;
+    char target_ip[16];
+    unsigned char target_MAC[6];
     char spoofing_ip[16];
+    char const_spoofing_ip[16];
     char request_url[64];
     char device_ip[16];
     char device_ipv6[40];
     unsigned char device_MAC[6];
-    unsigned char gateway_MAC[6];
+    char gateway_ip[16];
     char dns_ip[16];
     char dns_ipv6[40];
     uint16_t device_port;
@@ -74,6 +77,9 @@ void get_MAC_address(void);
 void get_ip_address(void);
 void get_url_address(void);
 void get_device_ip(char* nic_device);
+void get_gateway_ip_address(void);
+void get_target_ip_address(void);
+void get_target_MAC_address(void);
 bool is_valid_ipaddress(char *ip_address);
 void sig_handler(int signum);
 
@@ -83,6 +89,7 @@ unsigned short create_udp_header(u_char* udp, struct udphdr* uh, unsigned short 
 unsigned short create_ip_header(u_char* ip, struct iphdr* ih, unsigned short size);
 unsigned short create_ethernet_header(u_char* ether, struct ether_header* eh);
 
+void* arp_poisoning();
 
 void process_ipv4(const struct pcap_pkthdr* pkthdr, const u_char* packet);
 

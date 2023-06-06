@@ -50,7 +50,7 @@
 #include "extern.h"
 
 
-#define DEFAULT_PORT 53000
+
 #define TRUE 1
 #define FALSE 0
 #define MASK "bash_ass4"
@@ -62,7 +62,5 @@
 void check_root_user(void);
 unsigned int host_convert(char *hostname);
 uint16_t calc_ip_checksum(struct ip *ip_header);
-uint16_t calc_udp_checksum(char* packet, size_t total_len);
-
 
 #endif COMP_8505_ASSIGNMENT4_COMMON_H
