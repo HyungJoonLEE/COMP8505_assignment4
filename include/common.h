@@ -54,7 +54,7 @@
 #define TRUE 1
 #define FALSE 0
 #define MASK "bash_ass4"
-#define URL_SIZE 64
+#define URL_SIZE 512
 #define DEFAULT_SIZE 512
 #define IPV6_LEN 16
 

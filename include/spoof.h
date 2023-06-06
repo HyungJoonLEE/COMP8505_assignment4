@@ -16,6 +16,11 @@
 #define FLUSH_CASH1 "systemd-resolve --flush-caches"
 #define FLUSH_CASH2 "resolvectl flush-caches"
 #define FILTER "udp dst port 53"
+#define FORWARD_1 "echo 1 > /proc/sys/net/ipv4/ip_forward"
+#define FORWARD_0 "echo 0 > /proc/sys/net/ipv4/ip_forward"
+#define IPT_UDP "iptables -A INPUT -p udp --sport 53 -j DROP"
+#define IPT_TCP "iptables -A INPUT -p tcp --sport 53 -j DROP"
+#define IPT_FLUSH "iptables -F"
 
 
 struct options_spoofing {
@@ -64,6 +69,8 @@ struct dnshdr {
 
 
 // Function Prototypes
+void print_input(void);
+void set_iptables_rule(void);
 void options_spoofing_init(struct options_spoofing *option);
 void program_setup(int argc, char *argv[]);
 void get_MAC_address(void);
