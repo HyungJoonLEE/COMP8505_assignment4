@@ -4,18 +4,20 @@ pid_t pid;
 struct options_spoofing opts;
 pcap_t* nic_fd;
 char* nic_device;
+pthread_t thread_id;
 
 
 int main(int argc, char *argv[]) {
     char errbuf[PCAP_ERRBUF_SIZE] = {0};
     u_char* args = NULL;
-    pthread_t thread_id;
+
 
     struct bpf_program fp;      // holds compiled program
     bpf_u_int32 netp;           // ip
     bpf_u_int32 maskp;
 
     check_root_user();
+    signal(SIGINT,sig_handler);
     options_spoofing_init(&opts);
 
     program_setup(argc, argv);              // set process name, get root privilege
@@ -48,9 +50,6 @@ int main(int argc, char *argv[]) {
         printf("pcap_open_live(): %s\n", errbuf);
         exit(EXIT_FAILURE);
     }
-
-
-    signal(SIGINT,sig_handler);
 
     if (pcap_compile (nic_fd, &fp, FILTER, 0, netp) == -1) {
         fprintf(stderr,"Error calling pcap_compile\n");
@@ -93,7 +92,7 @@ void get_ip_address(void) {
     uint8_t input_length;
 
     while (1) {
-        printf("Enter response [ IP ] when get DNS request: ");
+        printf("Enter [ IP ] to redirect: ");
         fflush(stdout);
         fgets(opts.spoofing_ip, sizeof(opts.spoofing_ip), stdin);
         input_length = (uint8_t) strlen(opts.spoofing_ip);
@@ -114,7 +113,7 @@ void get_gateway_ip_address(void) {
     char temp[1024] = {0};
     char* token;
 
-    fp = popen("netstat -rn", "r");
+    fp = popen(NETSTAT, "r");
     while (fgets(temp, sizeof(temp), fp) != NULL) {
         // Find the line that contains "0.0.0.0" or "default"
         if (strstr(temp, "0.0.0.0") != NULL || strstr(temp, "default") != NULL) {
@@ -139,7 +138,7 @@ void get_target_ip_address(void) {
     uint8_t input_length;
 
     while (1) {
-        printf("Target [ IP ] : ");
+        printf("\nTarget [ IP ] : ");
         fflush(stdout);
         fgets(opts.target_ip, sizeof(opts.target_ip), stdin);
         input_length = (uint8_t) strlen(opts.target_ip);
@@ -157,8 +156,8 @@ void get_target_ip_address(void) {
 void get_url_address(void) {
     uint8_t input_length;
     while (1) {
-        puts("\n[ Returning IP ]");
-        printf("Enter [ URL ] to request to DNS: ");
+        printf("\nWhen victim access the url below, will go different webpage\n"
+               "Enter [ URL ]: ");
         fflush(stdout);
         fgets(opts.request_url, sizeof(opts.request_url), stdin);
         input_length = (uint8_t) strlen(opts.request_url);

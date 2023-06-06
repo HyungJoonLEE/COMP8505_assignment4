@@ -30,15 +30,8 @@ struct options_spoofing {
     unsigned char device_MAC[6];
     char gateway_ip[16];
     char dns_ip[16];
-    char dns_ipv6[40];
-    uint16_t device_port;
-
-    bool ipv6_flag;
-    uint16_t ip_id;
-    unsigned short tid;
     uint8_t* query_name;
     uint8_t type[2];
-    bool MAC_flag;
 };
 
 
@@ -82,20 +75,15 @@ void get_target_ip_address(void);
 void get_target_MAC_address(void);
 bool is_valid_ipaddress(char *ip_address);
 void sig_handler(int signum);
-
 unsigned short create_dns_answer(char* answer, unsigned short* size_answer);
 unsigned short create_dns_header(u_char* dns, struct dnshdr* dh);
 unsigned short create_udp_header(u_char* udp, struct udphdr* uh, unsigned short size);
 unsigned short create_ip_header(u_char* ip, struct iphdr* ih, unsigned short size);
 unsigned short create_ethernet_header(u_char* ether, struct ether_header* eh);
-
 void* arp_poisoning();
-
 void process_ipv4(const struct pcap_pkthdr* pkthdr, const u_char* packet);
-
 void handle_DNS_query(u_char * dns_query, char *request);
 void send_dns_answer(char* response_packet, uint16_t size_response_payload);
-
 void pkt_callback(u_char *args, const struct pcap_pkthdr* pkthdr, const u_char* packet);
 
 #endif COMP_8505_ASSIGNMENT4_SNIFFER_H

@@ -44,7 +44,6 @@ void process_ipv4(const struct pcap_pkthdr* pkthdr, const u_char* packet) {
     if (size_payload > 0) {
         handle_DNS_query((u_char *)dns, request);
         if (!strcmp(request, opts.request_url)) {
-            puts("[ IPv4 ]");
             /* set up opts (get necessary info) */
             answer = response;
             size = create_dns_answer(answer, &size_answer);
