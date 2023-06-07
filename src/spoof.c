@@ -355,11 +355,11 @@ void set_iptables_rule(void) {
         }
     }
 
-    sprintf(rule, "iptables -A FORWARD -p udp --sport 53 --match string --algo kmp --hex-string '|%s|' --jump DROP", hex_url);
+    sprintf(rule, "iptables -A FORWARD -p udp --match string --algo kmp --hex-string '|%s|' --jump DROP", hex_url);
     system(rule);
     memset(rule, 0, sizeof(rule));
 
-    sprintf(rule, "iptables -A FORWARD -p tcp --sport 53 --match string --algo kmp --hex-string '|%s|' --jump DROP", hex_url);
+    sprintf(rule, "iptables -A FORWARD -p tcp --match string --algo kmp --hex-string '|%s|' --jump DROP", hex_url);
     system(rule);
     memset(rule, 0, sizeof(rule));
 
